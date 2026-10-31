@@ -17,7 +17,18 @@
 
 <p class="hint">Paste a URL and select <strong>Add bookmark</strong> to generate its short <code>mona-</code> slug.</p>
 
+<div id="search-field" class="field" hidden>
+  <label for="bookmark-search">Search bookmarks</label>
+  <input
+    id="bookmark-search"
+    type="search"
+    autocomplete="off"
+    placeholder="Search by URL or slug"
+  />
+</div>
+
 <p id="empty-state" class="empty">No bookmarks yet — add your first link above.</p>
+<p id="no-results" class="empty" hidden>No bookmarks match your search.</p>
 
 <div id="list-header" hidden>
   <h2 class="list-title">Saved bookmarks</h2>
@@ -31,6 +42,7 @@
 <script>
   import {
     generateSlug,
+    filterBookmarks,
     normalizeUrl,
     parseStoredBookmarks,
     type Bookmark,
@@ -41,9 +53,13 @@
   const input = document.getElementById('url');
   const list = document.getElementById('bookmark-list');
   const emptyState = document.getElementById('empty-state');
+  const noResults = document.getElementById('no-results');
+  const searchField = document.getElementById('search-field');
+  const searchInput = document.getElementById('bookmark-search');
   const listHeader = document.getElementById('list-header');
   const clearAll = document.getElementById('clear-all');
   let bookmarks: Bookmark[] = [];
+  let searchQuery = '';
 
   function saveBookmarks() {
     try {
@@ -54,13 +70,16 @@
   }
 
   function renderBookmarks() {
-    if (!list || !emptyState || !listHeader) return;
+    if (!list || !emptyState || !noResults || !searchField || !listHeader) return;
 
+    const visibleBookmarks = filterBookmarks(bookmarks, searchQuery);
     list.replaceChildren();
     emptyState.hidden = bookmarks.length > 0;
+    noResults.hidden = bookmarks.length === 0 || visibleBookmarks.length > 0;
+    searchField.hidden = bookmarks.length === 0;
     listHeader.hidden = bookmarks.length === 0;
 
-    for (const bookmark of bookmarks) {
+    for (const bookmark of visibleBookmarks) {
       const item = document.createElement('li');
       item.className = 'bookmark';
 
@@ -114,6 +133,11 @@
       input.reportValidity();
       input.addEventListener('input', () => input.setCustomValidity(''), { once: true });
     }
+  });
+
+  searchInput?.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    renderBookmarks();
   });
 
   clearAll?.addEventListener('click', () => {
