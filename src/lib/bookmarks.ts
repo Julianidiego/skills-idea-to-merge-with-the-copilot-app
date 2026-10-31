@@ -63,6 +63,24 @@ export function formatBookmark(bookmark: Bookmark): string {
   return `${bookmark.url} :: ${bookmark.slug}`;
 }
 
+export function filterBookmarks(
+  bookmarks: Bookmark[] | null | undefined,
+  query: string | null | undefined,
+): Bookmark[] {
+  const storedBookmarks = bookmarks ?? [];
+  const normalizedQuery = query?.trim().toLowerCase() ?? '';
+
+  if (!normalizedQuery) {
+    return storedBookmarks;
+  }
+
+  return storedBookmarks.filter(
+    (bookmark) =>
+      bookmark.url.toLowerCase().includes(normalizedQuery) ||
+      bookmark.slug.toLowerCase().includes(normalizedQuery),
+  );
+}
+
 export function generateSlug(existingSlugs: Iterable<string>, random = Math.random): string {
   const used = new Set(existingSlugs);
 
