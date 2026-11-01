@@ -5,7 +5,9 @@ import {
   filterBookmarks,
   formatBookmark,
   importBookmarksFromJSON,
+  isBookmark,
   normalizeUrl,
+  normalizeBookmark,
   parseStoredBookmarks,
   type Bookmark,
 } from './bookmarks.ts';
@@ -18,6 +20,31 @@ const bookmarks: Bookmark[] = [
 
 test('normalizes URLs with and without https to the same value', () => {
   assert.equal(normalizeUrl('example.com'), normalizeUrl('https://example.com'));
+});
+
+test('rejects empty, whitespace-only, and non-web URLs', () => {
+  for (const value of ['', '   ', 'javascript:alert(1)', 'mailto:mona@example.com']) {
+    assert.throws(() => normalizeUrl(value), /required|Only HTTP and HTTPS/);
+  }
+});
+
+test('normalizes valid bookmarks and rejects corrupted bookmark shapes', () => {
+  assert.deepEqual(normalizeBookmark({ url: ' example.com ', slug: 'mona-7fk2' }), {
+    url: 'https://example.com/',
+    slug: 'mona-7fk2',
+  });
+  for (const value of [
+    null,
+    42,
+    {},
+    { url: 'https://example.com' },
+    { slug: 'mona-7fk2' },
+    { url: 'https://example.com', slug: 'bad' },
+    { url: '', slug: 'mona-7fk2' },
+  ]) {
+    assert.equal(normalizeBookmark(value), null);
+    assert.equal(isBookmark(value), false);
+  }
 });
 
 test('recovers from invalid stored values', () => {
@@ -74,6 +101,22 @@ test('imports valid JSON bookmarks', () => {
   assert.deepEqual(importBookmarksFromJSON(JSON.stringify(bookmarks)), bookmarks);
 });
 
+test('normalizes and deduplicates imported bookmarks by URL and slug', () => {
+  const imported = importBookmarksFromJSON(
+    JSON.stringify([
+      { url: 'example.com', slug: 'mona-7fk2' },
+      { url: 'https://example.com/', slug: 'mona-new1' },
+      { url: 'https://other.example', slug: 'mona-7fk2' },
+      { url: 'https://other.example', slug: 'mona-new2' },
+    ]),
+  );
+
+  assert.deepEqual(imported, [
+    { url: 'https://example.com/', slug: 'mona-7fk2' },
+    { url: 'https://other.example/', slug: 'mona-new2' },
+  ]);
+});
+
 test('sanitizes malformed imported JSON without throwing', () => {
   assert.deepEqual(
     importBookmarksFromJSON(
@@ -91,4 +134,16 @@ test('sanitizes malformed imported JSON without throwing', () => {
   assert.deepEqual(importBookmarksFromJSON('{broken json'), []);
   assert.deepEqual(importBookmarksFromJSON(JSON.stringify({ bookmarks })), []);
   assert.deepEqual(importBookmarksFromJSON(null), []);
+});
+
+test('exports only unique, normalized valid bookmarks', () => {
+  const exported = JSON.parse(
+    exportBookmarksToJSON([
+      { url: 'example.com', slug: 'mona-7fk2' },
+      { url: 'https://example.com/', slug: 'mona-new1' },
+      { url: 'https://other.example', slug: 'bad' },
+    ]),
+  );
+
+  assert.deepEqual(exported, [{ url: 'https://example.com/', slug: 'mona-7fk2' }]);
 });
