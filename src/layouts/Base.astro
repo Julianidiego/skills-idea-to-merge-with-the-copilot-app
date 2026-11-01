@@ -77,6 +77,7 @@ const { title = "Mona's Bookmark Manager App" } = Astro.props;
       }
       .field { display: flex; flex-direction: column; gap: 0.35rem; flex: 1 1 16rem; }
       label { font-size: 0.85rem; font-weight: 600; }
+      label span { font-weight: 400; color: var(--muted); }
       input {
         padding: 0.6rem 0.7rem;
         border: 1px solid var(--border);
@@ -139,6 +140,10 @@ const { title = "Mona's Bookmark Manager App" } = Astro.props;
         padding: 0.15rem 0.5rem;
         border-radius: 999px;
         background: color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+      .bookmark .tags {
+        color: var(--muted);
+        font-size: 0.8rem;
       }
       .bookmark .copy {
         background: transparent;
