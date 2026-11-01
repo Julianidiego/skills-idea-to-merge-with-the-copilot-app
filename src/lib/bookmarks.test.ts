@@ -9,6 +9,7 @@ import {
   normalizeUrl,
   normalizeBookmark,
   parseStoredBookmarks,
+  updateBookmark,
   type Bookmark,
 } from './bookmarks.ts';
 
@@ -67,6 +68,38 @@ test('formats a saved bookmark with the exact separator', () => {
     formatBookmark({ url: 'https://www.example.com', slug: 'mona-7fk2' }),
     'https://www.example.com :: mona-7fk2',
   );
+});
+
+test('updates a bookmark URL while preserving its slug', () => {
+  const updated = updateBookmark(bookmarks, 'mona-7fk2', 'new.example/path');
+
+  assert.deepEqual(updated, [
+    { url: 'https://new.example/path', slug: 'mona-7fk2' },
+    bookmarks[1],
+    bookmarks[2],
+  ]);
+  assert.deepEqual(bookmarks[0], {
+    url: 'https://example.com/articles/mona',
+    slug: 'mona-7fk2',
+  });
+});
+
+test('rejects empty, malformed, missing, and duplicate bookmark edits', () => {
+  for (const value of ['', '   ', 'javascript:alert(1)', 'not a URL']) {
+    assert.throws(() => updateBookmark(bookmarks, 'mona-7fk2', value));
+  }
+  assert.throws(() => updateBookmark([], 'mona-7fk2', 'example.com'), /not found/);
+  assert.throws(
+    () => updateBookmark(bookmarks, 'mona-7fk2', 'https://github.com/mona'),
+    /already exists/,
+  );
+});
+
+test('handles null bookmark lists and preserves edge-case URL normalization', () => {
+  assert.throws(() => updateBookmark(null, 'mona-7fk2', 'example.com'), /not found/);
+  assert.deepEqual(updateBookmark([{ url: 'https://example.com/', slug: 'mona-7fk2' }], 'mona-7fk2', 'HTTPS://EXAMPLE.COM'), [
+    { url: 'https://example.com/', slug: 'mona-7fk2' },
+  ]);
 });
 
 test('filters bookmarks by full or partial URL case-insensitively', () => {

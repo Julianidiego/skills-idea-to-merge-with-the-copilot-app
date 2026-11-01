@@ -93,6 +93,32 @@ export function formatBookmark(bookmark: Bookmark): string {
   return `${bookmark.url} :: ${bookmark.slug}`;
 }
 
+export function updateBookmark(
+  bookmarks: Bookmark[] | null | undefined,
+  slug: string,
+  url: string,
+): Bookmark[] {
+  const storedBookmarks = bookmarks ?? [];
+  const bookmarkIndex = storedBookmarks.findIndex((bookmark) => bookmark.slug === slug);
+
+  if (bookmarkIndex === -1) {
+    throw new Error('Bookmark not found.');
+  }
+
+  const normalizedUrl = normalizeUrl(url);
+  const duplicate = storedBookmarks.some(
+    (bookmark, index) => index !== bookmarkIndex && bookmark.url === normalizedUrl,
+  );
+
+  if (duplicate) {
+    throw new Error('A bookmark with this URL already exists.');
+  }
+
+  return storedBookmarks.map((bookmark, index) =>
+    index === bookmarkIndex ? { ...bookmark, url: normalizedUrl } : bookmark,
+  );
+}
+
 export function filterBookmarks(
   bookmarks: Bookmark[] | null | undefined,
   query: string | null | undefined,

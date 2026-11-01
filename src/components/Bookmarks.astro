@@ -1,6 +1,6 @@
-<form id="add-bookmark">
+<form id="bookmark-form">
   <div class="field">
-    <label for="url">Link to save</label>
+    <label id="url-label" for="url">Link to save</label>
     <input
       id="url"
       name="url"
@@ -12,7 +12,10 @@
       required
     />
   </div>
-  <button type="submit">Add bookmark</button>
+  <div class="form-actions">
+    <button id="submit-bookmark" type="submit">Add bookmark</button>
+    <button id="cancel-edit" type="button" class="clear" hidden>Cancel</button>
+  </div>
 </form>
 
 <p class="hint">Paste a URL and select <strong>Add bookmark</strong> to generate its short <code>mona-</code> slug.</p>
@@ -56,12 +59,16 @@
     importBookmarksFromJSON,
     normalizeUrl,
     parseStoredBookmarks,
+    updateBookmark,
     type Bookmark,
   } from '../lib/bookmarks';
 
   const STORAGE_KEY = 'mona-bookmarks';
-  const form = document.getElementById('add-bookmark');
+  const form = document.getElementById('bookmark-form');
   const input = document.getElementById('url');
+  const urlLabel = document.getElementById('url-label');
+  const submitBookmark = document.getElementById('submit-bookmark');
+  const cancelEdit = document.getElementById('cancel-edit');
   const list = document.getElementById('bookmark-list');
   const emptyState = document.getElementById('empty-state');
   const noResults = document.getElementById('no-results');
@@ -74,6 +81,7 @@
   const clearAll = document.getElementById('clear-all');
   let bookmarks: Bookmark[] = [];
   let searchQuery = '';
+  let editingSlug: string | null = null;
 
   function saveBookmarks() {
     try {
@@ -131,7 +139,21 @@
         }
       });
 
-      item.append(link, separator, slug, copy);
+      const edit = document.createElement('button');
+      edit.className = 'copy';
+      edit.type = 'button';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', () => {
+        if (!(input instanceof HTMLInputElement)) return;
+        editingSlug = bookmark.slug;
+        input.value = bookmark.url;
+        input.focus();
+        if (urlLabel) urlLabel.textContent = 'Edit link';
+        if (submitBookmark) submitBookmark.textContent = 'Save changes';
+        if (cancelEdit) cancelEdit.hidden = false;
+      });
+
+      item.append(link, separator, slug, copy, edit);
       list.append(item);
     }
   }
@@ -142,17 +164,39 @@
     if (!(input instanceof HTMLInputElement)) return;
 
     try {
-      const url = normalizeUrl(input.value);
-      const slug = generateSlug(bookmarks.map((bookmark) => bookmark.slug));
-      bookmarks = [...bookmarks, { url, slug }];
+      if (editingSlug) {
+        bookmarks = updateBookmark(bookmarks, editingSlug, input.value);
+      } else {
+        const url = normalizeUrl(input.value);
+        const slug = generateSlug(bookmarks.map((bookmark) => bookmark.slug));
+        bookmarks = [...bookmarks, { url, slug }];
+      }
       saveBookmarks();
       input.value = '';
+      editingSlug = null;
+      if (urlLabel) urlLabel.textContent = 'Link to save';
+      if (submitBookmark) submitBookmark.textContent = 'Add bookmark';
+      if (cancelEdit) cancelEdit.hidden = true;
       renderBookmarks();
     } catch {
-      input.setCustomValidity('Enter a valid HTTP or HTTPS URL.');
+      input.setCustomValidity(
+        editingSlug
+          ? 'Enter a unique, valid HTTP or HTTPS URL.'
+          : 'Enter a valid HTTP or HTTPS URL.',
+      );
       input.reportValidity();
       input.addEventListener('input', () => input.setCustomValidity(''), { once: true });
     }
+  });
+
+  cancelEdit?.addEventListener('click', () => {
+    if (!(input instanceof HTMLInputElement)) return;
+    editingSlug = null;
+    input.value = '';
+    input.setCustomValidity('');
+    if (urlLabel) urlLabel.textContent = 'Link to save';
+    if (submitBookmark) submitBookmark.textContent = 'Add bookmark';
+    if (cancelEdit) cancelEdit.hidden = true;
   });
 
   searchInput?.addEventListener('input', () => {
