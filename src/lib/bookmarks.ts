@@ -10,32 +10,49 @@ const SLUG_PATTERN = /^mona-[0-9a-zA-Z]{4}$/;
 
 export function normalizeUrl(value: string): string {
   const trimmed = value.trim();
-  const withProtocol = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
+  if (!trimmed) {
+    throw new Error('A URL is required.');
+  }
+
+  const scheme = trimmed.match(/^([a-z][a-z\d+\-.]*):/i)?.[1].toLowerCase();
+  if (scheme && !['http', 'https'].includes(scheme)) {
+    throw new Error('Only HTTP and HTTPS URLs are supported.');
+  }
+
+  const withProtocol = scheme ? trimmed : `https://${trimmed}`;
   const url = new URL(withProtocol);
 
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new Error('Only HTTP and HTTPS URLs are supported.');
   }
 
+  if (!url.hostname) {
+    throw new Error('A URL hostname is required.');
+  }
+
   return url.href;
 }
 
 export function isBookmark(value: unknown): value is Bookmark {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as Record<string, unknown>).url === 'string' &&
-    typeof (value as Record<string, unknown>).slug === 'string' &&
-    normalizeStoredUrl((value as Record<string, unknown>).url) !== null &&
-    SLUG_PATTERN.test((value as Record<string, unknown>).slug)
-  );
+  return normalizeBookmark(value) !== null;
 }
 
-function normalizeStoredUrl(value: string): string | null {
+export function normalizeBookmark(value: unknown): Bookmark | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.url !== 'string' || typeof candidate.slug !== 'string') {
+    return null;
+  }
+
+  if (!SLUG_PATTERN.test(candidate.slug)) {
+    return null;
+  }
+
   try {
-    return normalizeUrl(value);
+    return { url: normalizeUrl(candidate.url), slug: candidate.slug };
   } catch {
     return null;
   }
@@ -48,15 +65,28 @@ export function parseStoredBookmarks(raw: string | null): Bookmark[] {
 
   try {
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter(isBookmark).map((bookmark) => ({
-          url: normalizeUrl(bookmark.url),
-          slug: bookmark.slug,
-        }))
-      : [];
+    return Array.isArray(parsed) ? deduplicateBookmarks(parsed.map(normalizeBookmark)) : [];
   } catch {
     return [];
   }
+}
+
+function deduplicateBookmarks(bookmarks: Array<Bookmark | null>): Bookmark[] {
+  const urls = new Set<string>();
+  const slugs = new Set<string>();
+  const validBookmarks: Bookmark[] = [];
+
+  for (const bookmark of bookmarks) {
+    if (!bookmark || urls.has(bookmark.url) || slugs.has(bookmark.slug)) {
+      continue;
+    }
+
+    urls.add(bookmark.url);
+    slugs.add(bookmark.slug);
+    validBookmarks.push(bookmark);
+  }
+
+  return validBookmarks;
 }
 
 export function formatBookmark(bookmark: Bookmark): string {
@@ -82,12 +112,7 @@ export function filterBookmarks(
 }
 
 export function exportBookmarksToJSON(bookmarks: Bookmark[] | null | undefined): string {
-  const validBookmarks = (bookmarks ?? [])
-    .filter(isBookmark)
-    .map((bookmark) => ({
-      url: normalizeUrl(bookmark.url),
-      slug: bookmark.slug,
-    }));
+  const validBookmarks = deduplicateBookmarks((bookmarks ?? []).map(normalizeBookmark));
 
   return JSON.stringify(validBookmarks, null, 2);
 }
