@@ -1,6 +1,7 @@
 export interface Bookmark {
   url: string;
   slug: string;
+  tags: string[];
 }
 
 const BASE62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -52,10 +53,38 @@ export function normalizeBookmark(value: unknown): Bookmark | null {
   }
 
   try {
-    return { url: normalizeUrl(candidate.url), slug: candidate.slug };
+    return {
+      url: normalizeUrl(candidate.url),
+      slug: candidate.slug,
+      tags: normalizeTags(candidate.tags),
+    };
   } catch {
     return null;
   }
+}
+
+export function normalizeTags(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const tags = new Set<string>();
+  for (const tag of value) {
+    if (typeof tag !== 'string') {
+      continue;
+    }
+
+    const normalizedTag = tag.trim().toLowerCase();
+    if (normalizedTag) {
+      tags.add(normalizedTag);
+    }
+  }
+
+  return [...tags];
+}
+
+export function parseTags(value: string | null | undefined): string[] {
+  return normalizeTags(value?.split(',') ?? []);
 }
 
 export function parseStoredBookmarks(raw: string | null): Bookmark[] {
@@ -97,6 +126,7 @@ export function updateBookmark(
   bookmarks: Bookmark[] | null | undefined,
   slug: string,
   url: string,
+  tags?: unknown,
 ): Bookmark[] {
   const storedBookmarks = bookmarks ?? [];
   const bookmarkIndex = storedBookmarks.findIndex((bookmark) => bookmark.slug === slug);
@@ -115,7 +145,13 @@ export function updateBookmark(
   }
 
   return storedBookmarks.map((bookmark, index) =>
-    index === bookmarkIndex ? { ...bookmark, url: normalizedUrl } : bookmark,
+    index === bookmarkIndex
+      ? {
+          ...bookmark,
+          url: normalizedUrl,
+          tags: tags === undefined ? normalizeTags(bookmark.tags) : normalizeTags(tags),
+        }
+      : bookmark,
   );
 }
 
@@ -133,7 +169,8 @@ export function filterBookmarks(
   return storedBookmarks.filter(
     (bookmark) =>
       bookmark.url.toLowerCase().includes(normalizedQuery) ||
-      bookmark.slug.toLowerCase().includes(normalizedQuery),
+      bookmark.slug.toLowerCase().includes(normalizedQuery) ||
+      normalizeTags(bookmark.tags).some((tag) => tag.includes(normalizedQuery)),
   );
 }
 

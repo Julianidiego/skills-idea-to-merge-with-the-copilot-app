@@ -12,6 +12,17 @@
       required
     />
   </div>
+  <div class="field">
+    <label for="tags">Tags <span>(comma-separated)</span></label>
+    <input
+      id="tags"
+      name="tags"
+      type="text"
+      autocomplete="off"
+      spellcheck="false"
+      placeholder="reading, work"
+    />
+  </div>
   <div class="form-actions">
     <button id="submit-bookmark" type="submit">Add bookmark</button>
     <button id="cancel-edit" type="button" class="clear" hidden>Cancel</button>
@@ -26,7 +37,7 @@
     id="bookmark-search"
     type="search"
     autocomplete="off"
-    placeholder="Search by URL or slug"
+    placeholder="Search by URL, slug, or tag"
   />
 </div>
 
@@ -58,6 +69,7 @@
     filterBookmarks,
     importBookmarksFromJSON,
     normalizeUrl,
+    parseTags,
     parseStoredBookmarks,
     updateBookmark,
     type Bookmark,
@@ -66,6 +78,7 @@
   const STORAGE_KEY = 'mona-bookmarks';
   const form = document.getElementById('bookmark-form');
   const input = document.getElementById('url');
+  const tagsInput = document.getElementById('tags');
   const urlLabel = document.getElementById('url-label');
   const submitBookmark = document.getElementById('submit-bookmark');
   const cancelEdit = document.getElementById('cancel-edit');
@@ -123,6 +136,10 @@
       slug.className = 'slug';
       slug.textContent = bookmark.slug;
 
+      const tags = document.createElement('span');
+      tags.className = 'tags';
+      tags.textContent = bookmark.tags.map((tag) => `#${tag}`).join(' ');
+
       const copy = document.createElement('button');
       copy.className = 'copy';
       copy.type = 'button';
@@ -147,13 +164,16 @@
         if (!(input instanceof HTMLInputElement)) return;
         editingSlug = bookmark.slug;
         input.value = bookmark.url;
+        if (tagsInput instanceof HTMLInputElement) tagsInput.value = bookmark.tags.join(', ');
         input.focus();
         if (urlLabel) urlLabel.textContent = 'Edit link';
         if (submitBookmark) submitBookmark.textContent = 'Save changes';
         if (cancelEdit) cancelEdit.hidden = false;
       });
 
-      item.append(link, separator, slug, copy, edit);
+      item.append(link, separator, slug);
+      if (bookmark.tags.length > 0) item.append(tags);
+      item.append(copy, edit);
       list.append(item);
     }
   }
@@ -165,14 +185,21 @@
 
     try {
       if (editingSlug) {
-        bookmarks = updateBookmark(bookmarks, editingSlug, input.value);
+        bookmarks = updateBookmark(
+          bookmarks,
+          editingSlug,
+          input.value,
+          parseTags(tagsInput instanceof HTMLInputElement ? tagsInput.value : ''),
+        );
       } else {
         const url = normalizeUrl(input.value);
         const slug = generateSlug(bookmarks.map((bookmark) => bookmark.slug));
-        bookmarks = [...bookmarks, { url, slug }];
+        const tags = parseTags(tagsInput instanceof HTMLInputElement ? tagsInput.value : '');
+        bookmarks = [...bookmarks, { url, slug, tags }];
       }
       saveBookmarks();
       input.value = '';
+      if (tagsInput instanceof HTMLInputElement) tagsInput.value = '';
       editingSlug = null;
       if (urlLabel) urlLabel.textContent = 'Link to save';
       if (submitBookmark) submitBookmark.textContent = 'Add bookmark';
@@ -193,6 +220,7 @@
     if (!(input instanceof HTMLInputElement)) return;
     editingSlug = null;
     input.value = '';
+    if (tagsInput instanceof HTMLInputElement) tagsInput.value = '';
     input.setCustomValidity('');
     if (urlLabel) urlLabel.textContent = 'Link to save';
     if (submitBookmark) submitBookmark.textContent = 'Add bookmark';
