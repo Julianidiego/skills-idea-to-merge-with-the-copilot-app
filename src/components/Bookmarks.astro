@@ -27,13 +27,22 @@
   />
 </div>
 
+<div class="bookmark-actions">
+  <button id="export-json" type="button" class="clear">Export JSON</button>
+  <label for="import-json" class="clear file-button">Import JSON</label>
+  <input id="import-json" type="file" accept="application/json,.json" hidden />
+</div>
+
 <p id="empty-state" class="empty">No bookmarks yet — add your first link above.</p>
 <p id="no-results" class="empty" hidden>No bookmarks match your search.</p>
 
 <div id="list-header" hidden>
   <h2 class="list-title">Saved bookmarks</h2>
-  <button id="clear-all" type="button" class="clear">Clear all</button>
+  <div class="list-actions">
+    <button id="clear-all" type="button" class="clear">Clear all</button>
+  </div>
 </div>
+<p id="import-status" class="hint" hidden></p>
 
 <ul id="bookmark-list" aria-label="Saved bookmarks" aria-live="polite">
   <!-- Bookmarks render here in the browser. -->
@@ -42,7 +51,9 @@
 <script>
   import {
     generateSlug,
+    exportBookmarksToJSON,
     filterBookmarks,
+    importBookmarksFromJSON,
     normalizeUrl,
     parseStoredBookmarks,
     type Bookmark,
@@ -57,6 +68,9 @@
   const searchField = document.getElementById('search-field');
   const searchInput = document.getElementById('bookmark-search');
   const listHeader = document.getElementById('list-header');
+  const exportJson = document.getElementById('export-json');
+  const importJson = document.getElementById('import-json');
+  const importStatus = document.getElementById('import-status');
   const clearAll = document.getElementById('clear-all');
   let bookmarks: Bookmark[] = [];
   let searchQuery = '';
@@ -67,6 +81,12 @@
     } catch {
       // Storage may be unavailable or full; the in-memory list remains usable.
     }
+  }
+
+  function setImportStatus(message: string) {
+    if (!importStatus) return;
+    importStatus.textContent = message;
+    importStatus.hidden = !message;
   }
 
   function renderBookmarks() {
@@ -138,6 +158,47 @@
   searchInput?.addEventListener('input', () => {
     searchQuery = searchInput.value;
     renderBookmarks();
+  });
+
+  exportJson?.addEventListener('click', () => {
+    const blob = new Blob([exportBookmarksToJSON(bookmarks)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mona-bookmarks.json';
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  });
+
+  importJson?.addEventListener('change', async () => {
+    if (!(importJson instanceof HTMLInputElement) || !importJson.files?.[0]) return;
+
+    try {
+      const importedBookmarks = importBookmarksFromJSON(await importJson.files[0].text());
+      const existingUrls = new Set(bookmarks.map((bookmark) => bookmark.url));
+      const existingSlugs = new Set(bookmarks.map((bookmark) => bookmark.slug));
+      const newBookmarks = importedBookmarks.filter((bookmark) => {
+        if (existingUrls.has(bookmark.url) || existingSlugs.has(bookmark.slug)) {
+          return false;
+        }
+        existingUrls.add(bookmark.url);
+        existingSlugs.add(bookmark.slug);
+        return true;
+      });
+
+      bookmarks = [...bookmarks, ...newBookmarks];
+      saveBookmarks();
+      renderBookmarks();
+      setImportStatus(
+        newBookmarks.length > 0
+          ? `Imported ${newBookmarks.length} bookmark${newBookmarks.length === 1 ? '' : 's'}.`
+          : 'No new valid bookmarks found in that file.',
+      );
+    } catch {
+      setImportStatus('Unable to read the selected JSON file.');
+    } finally {
+      importJson.value = '';
+    }
   });
 
   clearAll?.addEventListener('click', () => {

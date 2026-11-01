@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  exportBookmarksToJSON,
   filterBookmarks,
   formatBookmark,
+  importBookmarksFromJSON,
   normalizeUrl,
   parseStoredBookmarks,
   type Bookmark,
@@ -11,7 +13,7 @@ import {
 const bookmarks: Bookmark[] = [
   { url: 'https://example.com/articles/mona', slug: 'mona-7fk2' },
   { url: 'https://github.com/mona', slug: 'mona-ab12' },
-  { url: 'https://astro.build', slug: 'mona-cd34' },
+  { url: 'https://astro.build/', slug: 'mona-cd34' },
 ];
 
 test('normalizes URLs with and without https to the same value', () => {
@@ -59,4 +61,34 @@ test('handles empty or null bookmark lists without throwing', () => {
   assert.deepEqual(filterBookmarks([], 'mona-'), []);
   assert.deepEqual(filterBookmarks(null, 'mona-'), []);
   assert.deepEqual(filterBookmarks(undefined, 'mona-'), []);
+});
+
+test('exports bookmarks as formatted valid JSON', () => {
+  const exported = exportBookmarksToJSON(bookmarks);
+
+  assert.match(exported, /\n/);
+  assert.deepEqual(JSON.parse(exported), bookmarks);
+});
+
+test('imports valid JSON bookmarks', () => {
+  assert.deepEqual(importBookmarksFromJSON(JSON.stringify(bookmarks)), bookmarks);
+});
+
+test('sanitizes malformed imported JSON without throwing', () => {
+  assert.deepEqual(
+    importBookmarksFromJSON(
+      JSON.stringify([
+        bookmarks[0],
+        { url: 'https://missing-slug.example' },
+        { slug: 'mona-bad1' },
+        { url: 'not a URL', slug: 'mona-1234' },
+        { url: 'https://invalid-slug.example', slug: 'not-a-slug' },
+        'not a bookmark',
+      ]),
+    ),
+    [bookmarks[0]],
+  );
+  assert.deepEqual(importBookmarksFromJSON('{broken json'), []);
+  assert.deepEqual(importBookmarksFromJSON(JSON.stringify({ bookmarks })), []);
+  assert.deepEqual(importBookmarksFromJSON(null), []);
 });

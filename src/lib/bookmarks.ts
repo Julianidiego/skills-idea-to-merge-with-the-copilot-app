@@ -81,6 +81,21 @@ export function filterBookmarks(
   );
 }
 
+export function exportBookmarksToJSON(bookmarks: Bookmark[] | null | undefined): string {
+  const validBookmarks = (bookmarks ?? [])
+    .filter(isBookmark)
+    .map((bookmark) => ({
+      url: normalizeUrl(bookmark.url),
+      slug: bookmark.slug,
+    }));
+
+  return JSON.stringify(validBookmarks, null, 2);
+}
+
+export function importBookmarksFromJSON(jsonString: string | null | undefined): Bookmark[] {
+  return typeof jsonString === 'string' ? parseStoredBookmarks(jsonString) : [];
+}
+
 export function generateSlug(existingSlugs: Iterable<string>, random = Math.random): string {
   const used = new Set(existingSlugs);
 
